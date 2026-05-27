@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Closed Shape Area Game</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main class="app">
+    <section class="card">
+      <h1>Closed Shape Area Game</h1>
+      <p class="subtitle">
+        Draw a closed shape. The program estimates its area using Green's theorem.
+      </p>
+
+      <div class="info-row">
+        <div id="targetText" class="target-box">Target area: -- square units</div>
+        <div class="hint-box">Goal: draw a closed shape close to the target area.</div>
+      </div>
+
+      <div class="canvas-wrap">
+        <canvas id="gameCanvas" width="720" height="540"></canvas>
+      </div>
+
+      <div class="buttons">
+        <button id="calculateBtn">Calculate Area</button>
+        <button id="clearBtn" class="secondary">Clear Drawing</button>
+        <button id="newTargetBtn" class="secondary">New Target</button>
+      </div>
+
+      <div id="resultText" class="result">
+        Use your mouse or finger to draw one closed shape.
+      </div>
+
+      <p class="math-note">
+        Math idea: Area = 1/2 ∮(x dy - y dx), approximated by many small line segments.
+      </p>
+    </section>
+  </main>
+
+  <script src="script.js"></script>
+</body>
+</html>
