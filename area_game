@@ -1,0 +1,368 @@
+import tkinter as tk
+import random
+
+
+class ClosedShapeAreaGame:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Closed Shape Area Game")
+
+        self.X_MAX = 10
+        self.Y_MAX = 10
+
+        self.canvas_w = 720
+        self.canvas_h = 540
+        self.left = 70
+        self.top = 35
+        self.right = 35
+        self.bottom = 65
+        self.graph_w = self.canvas_w - self.left - self.right
+        self.graph_h = self.canvas_h - self.top - self.bottom
+
+        self.target_area = random.randint(15, 85)
+
+        self.points = []
+        self.last_point = None
+        self.shape_calculated = False
+
+        self.title_label = tk.Label(
+            root,
+            text="Draw a closed shape. The program estimates its area using an integral.",
+            font=("Arial", 16, "bold")
+        )
+        self.title_label.pack(pady=8)
+
+        self.info_label = tk.Label(
+            root,
+            text="",
+            font=("Arial", 13)
+        )
+        self.info_label.pack()
+
+        self.canvas = tk.Canvas(
+            root,
+            width=self.canvas_w,
+            height=self.canvas_h,
+            bg="white"
+        )
+        self.canvas.pack(pady=8)
+
+        button_frame = tk.Frame(root)
+        button_frame.pack(pady=8)
+
+        self.check_button = tk.Button(
+            button_frame,
+            text="Calculate Area",
+            command=self.check_area,
+            width=16
+        )
+        self.check_button.grid(row=0, column=0, padx=6)
+
+        self.clear_button = tk.Button(
+            button_frame,
+            text="Clear Drawing",
+            command=self.clear_drawing,
+            width=16
+        )
+        self.clear_button.grid(row=0, column=1, padx=6)
+
+        self.new_button = tk.Button(
+            button_frame,
+            text="New Target",
+            command=self.new_target,
+            width=16
+        )
+        self.new_button.grid(row=0, column=2, padx=6)
+
+        self.result_label = tk.Label(
+            root,
+            text="Use your mouse to draw one closed shape.",
+            font=("Arial", 20, "bold"),
+            fg="black"
+        )
+        self.result_label.pack(pady=10)
+
+        self.explain_label = tk.Label(
+            root,
+            text="Math idea: Area = 1/2 ∮(x dy - y dx), approximated by many small line segments.",
+            font=("Arial", 12),
+            fg="gray25"
+        )
+        self.explain_label.pack(pady=2)
+
+        self.canvas.bind("<Button-1>", self.start_draw)
+        self.canvas.bind("<B1-Motion>", self.draw)
+        self.canvas.bind("<ButtonRelease-1>", self.end_draw)
+
+        self.redraw_all()
+
+    def update_info(self):
+        self.info_label.config(
+            text=f"Target area: {self.target_area} square units    |    Goal: draw a closed shape close to this area"
+        )
+
+    def to_canvas(self, x, y):
+        px = self.left + (x / self.X_MAX) * self.graph_w
+        py = self.top + self.graph_h - (y / self.Y_MAX) * self.graph_h
+        return px, py
+
+    def to_math(self, px, py):
+        px = max(self.left, min(self.left + self.graph_w, px))
+        py = max(self.top, min(self.top + self.graph_h, py))
+
+        x = (px - self.left) / self.graph_w * self.X_MAX
+        y = (self.top + self.graph_h - py) / self.graph_h * self.Y_MAX
+
+        return x, y
+
+    def inside_graph(self, px, py):
+        return (
+            self.left <= px <= self.left + self.graph_w
+            and self.top <= py <= self.top + self.graph_h
+        )
+
+    def draw_grid(self):
+        self.canvas.delete("grid")
+
+        self.canvas.create_rectangle(
+            self.left,
+            self.top,
+            self.left + self.graph_w,
+            self.top + self.graph_h,
+            width=2,
+            tags="grid"
+        )
+
+        for i in range(self.X_MAX + 1):
+            px, _ = self.to_canvas(i, 0)
+
+            self.canvas.create_line(
+                px,
+                self.top,
+                px,
+                self.top + self.graph_h,
+                fill="#dddddd",
+                tags="grid"
+            )
+
+            self.canvas.create_text(
+                px,
+                self.top + self.graph_h + 18,
+                text=str(i),
+                font=("Arial", 11),
+                tags="grid"
+            )
+
+        for j in range(self.Y_MAX + 1):
+            _, py = self.to_canvas(0, j)
+
+            self.canvas.create_line(
+                self.left,
+                py,
+                self.left + self.graph_w,
+                py,
+                fill="#dddddd",
+                tags="grid"
+            )
+
+            self.canvas.create_text(
+                self.left - 20,
+                py,
+                text=str(j),
+                font=("Arial", 11),
+                tags="grid"
+            )
+
+        self.canvas.create_text(
+            self.left + self.graph_w / 2,
+            self.canvas_h - 20,
+            text="x",
+            font=("Arial", 13),
+            tags="grid"
+        )
+
+        self.canvas.create_text(
+            25,
+            self.top + self.graph_h / 2,
+            text="y",
+            font=("Arial", 13),
+            tags="grid"
+        )
+
+    def redraw_all(self):
+        self.canvas.delete("all")
+        self.draw_grid()
+        self.update_info()
+
+    def start_draw(self, event):
+        if not self.inside_graph(event.x, event.y):
+            return
+
+        if self.shape_calculated:
+            self.clear_drawing()
+
+        self.canvas.delete("area_fill")
+        self.canvas.delete("closure_line")
+
+        self.last_point = (event.x, event.y)
+        self.points.append((event.x, event.y))
+
+    def draw(self, event):
+        if self.last_point is None:
+            return
+
+        if not self.inside_graph(event.x, event.y):
+            return
+
+        x1, y1 = self.last_point
+        x2, y2 = event.x, event.y
+
+        # 避免点太密，鼠标移动太小就不重复记录
+        dx = x2 - x1
+        dy = y2 - y1
+
+        if dx * dx + dy * dy < 9:
+            return
+
+        self.canvas.create_line(
+            x1,
+            y1,
+            x2,
+            y2,
+            width=3,
+            fill="black",
+            tags="drawing"
+        )
+
+        self.last_point = (x2, y2)
+        self.points.append((x2, y2))
+
+    def end_draw(self, event):
+        self.last_point = None
+
+    def estimate_closed_area(self):
+        if len(self.points) < 3:
+            return None
+
+        math_points = []
+
+        for px, py in self.points:
+            x, y = self.to_math(px, py)
+            math_points.append((x, y))
+
+
+        total = 0
+
+        for i in range(len(math_points)):
+            x1, y1 = math_points[i]
+            x2, y2 = math_points[(i + 1) % len(math_points)]
+
+            total += x1 * y2 - x2 * y1
+
+        area = abs(total) / 2
+        return area
+
+    def draw_closed_shape_fill(self):
+        if len(self.points) < 3:
+            return
+
+        self.canvas.delete("area_fill")
+        self.canvas.delete("closure_line")
+
+        polygon_points = []
+
+        for px, py in self.points:
+            polygon_points.append(px)
+            polygon_points.append(py)
+
+        # 给封闭图形内部涂色
+        self.canvas.create_polygon(
+            polygon_points,
+            fill="#bdeeff",
+            outline="",
+            tags="area_fill"
+        )
+
+        # 把填色放到底层，这样网格和黑色边界还可以看见
+        self.canvas.tag_lower("area_fill")
+
+        # 自动连接最后一个点和第一个点，让图形封闭
+        first_x, first_y = self.points[0]
+        last_x, last_y = self.points[-1]
+
+        self.canvas.create_line(
+            last_x,
+            last_y,
+            first_x,
+            first_y,
+            width=3,
+            fill="black",
+            dash=(6, 4),
+            tags="closure_line"
+        )
+
+    def check_area(self):
+        area = self.estimate_closed_area()
+
+        if area is None:
+            self.result_label.config(
+                text="Draw a bigger closed shape first.",
+                fg="red",
+                font=("Arial", 22, "bold")
+            )
+            return
+
+        self.draw_closed_shape_fill()
+
+        error = abs(area - self.target_area)
+        score = max(0, round(100 * (1 - error / self.target_area)))
+
+        if score >= 80:
+            result_color = "green"
+        elif score >= 50:
+            result_color = "dark orange"
+        else:
+            result_color = "red"
+
+        self.result_label.config(
+            text=(
+                f"Your Area ≈ {area:.2f}\n"
+                f"Target = {self.target_area}    Error = {error:.2f}    Score = {score}/100"
+            ),
+            fg=result_color,
+            font=("Arial", 26, "bold")
+        )
+
+        self.shape_calculated = True
+
+    def clear_drawing(self):
+        self.points = []
+        self.last_point = None
+        self.shape_calculated = False
+
+        self.canvas.delete("drawing")
+        self.canvas.delete("area_fill")
+        self.canvas.delete("closure_line")
+
+        self.result_label.config(
+            text="Drawing cleared. Draw one closed shape again.",
+            fg="black",
+            font=("Arial", 20, "bold")
+        )
+
+    def new_target(self):
+        self.target_area = random.randint(15, 85)
+        self.clear_drawing()
+        self.update_info()
+
+        self.result_label.config(
+            text="New target generated. Draw a new closed shape.",
+            fg="black",
+            font=("Arial", 20, "bold")
+        )
+
+
+if __name__ == "__main__":
+    root = tk.Tk()
+    game = ClosedShapeAreaGame(root)
+    root.mainloop()
