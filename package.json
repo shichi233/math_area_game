@@ -1,8 +1,0 @@
-{
-  "name": "closed-shape-area-game",
-  "version": "1.0.0",
-  "private": true,
-  "scripts": {
-    "start": "vercel dev"
-  }
-}
